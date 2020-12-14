@@ -1,0 +1,57 @@
+- hosts: localhost
+  vars_files:
+          -     mycred1.yml
+
+
+  vars:
+          region: ap-south-1
+          subnet: subnet-b6c8dfde
+          sg: arth_sg
+          type: t2.micro
+          number: 1
+  tasks:
+  - name: launch ec2-instance
+    ec2:
+            key_name: arth
+            instance_type: "{{ type }}"
+            image: ami-0a9d27a9f4f5c0efc
+            wait: true
+            group: "{{ sg }}"
+            count: "{{ number }}"
+            vpc_subnet_id: "{{ subnet }}"
+            assign_public_ip: yes
+            region: "{{ region }}"
+            state: present
+            aws_access_key: "{{ access_key }}"
+            aws_secret_key: "{{ secret_key }}"
+            instance_tags:
+                    Name: webserver
+    register: ec2
+  - name: add public ip of newinstances
+    add_host:
+            hostname: "{{ item.public_ip }}"
+            groupname:  webserver
+    loop: "{{ ec2.instances }}"
+  - name: wait for ssh come
+    wait_for:
+            host: "{{ item.public_dns_name }}"
+            port: 22
+            state: started
+    loop: "{{ ec2.instances }}"
+
+
+- hosts: webserver
+  gather_facts: no
+  tasks:
+          - name: install httpd
+            package:
+                    name: "httpd"
+                    state: present
+          - name:
+            copy:
+                    src: "index.html"
+                    dest: "/var/www/html/index.html"
+          - name: start service
+            service:
+                    name: "httpd"
+                    state: started
